@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ENGLISH QUEST</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif; background:#f3f6fb; color:#172033; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:24px 14px 48px; }
+    main { width:min(720px,100%); margin:auto; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+    h1 { margin:0; font-size:1.45rem; }
+    .tag { background:#dbeafe; color:#1d4ed8; padding:6px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }
+    .panel { background:white; border:1px solid #e2e8f0; border-radius:18px; padding:20px; margin:14px 0; box-shadow:0 5px 20px #0f172a0a; }
+    .muted { color:#64748b; font-size:.9rem; }
+    .sentence { font-size:1.18rem; line-height:1.8; font-weight:650; }
+    textarea { width:100%; min-height:112px; border:1px solid #cbd5e1; border-radius:12px; padding:13px; font:inherit; resize:vertical; }
+    button { border:0; border-radius:12px; background:#2563eb; color:white; font:inherit; font-weight:700; padding:13px 18px; cursor:pointer; width:100%; margin-top:12px; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .score { font-size:2.4rem; font-weight:800; color:#1d4ed8; }
+    .item { border-top:1px solid #e2e8f0; padding:12px 0; }
+    .item strong { display:block; margin-bottom:4px; }
+    .hint { background:#fff7ed; border-radius:12px; padding:12px; margin-top:12px; }
+    .hidden { display:none; }
+    #error { color:#b91c1c; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>⚔️ ENGLISH QUEST</h1><span class="tag">AI TRANSLATION BATTLE</span></header>
+  <section class="panel">
+    <p class="muted">STAGE 01　/　SENTENCE 01</p>
+    <p class="sentence" id="sentence">Although the task was difficult, she continued working because she wanted to succeed.</p>
+    <p class="muted">英文の意味が伝わるように、日本語訳を入力しよう。</p>
+    <textarea id="answer" placeholder="ここに日本語訳を入力してください">課題は難しかったけれど、彼女は成功したかったので取り組み続けた。</textarea>
+    <button id="grade">AIに採点してもらう</button>
+    <p id="error" role="alert"></p>
+  </section>
+  <section id="result" class="panel hidden" aria-live="polite">
+    <p class="muted">BATTLE RESULT</p>
+    <div class="score"><span id="score">0</span><span style="font-size:1rem"> / 100点</span></div>
+    <h2 id="status"></h2><p id="overall"></p>
+    <h3>攻略ポイント</h3><div id="items"></div>
+    <div id="hintBox" class="hint hidden"><strong>💡 ヒント</strong><p id="hint"></p></div>
+    <h3>参考訳</h3><p id="modelTranslation"></p>
+  </section>
+  <p class="muted">オリジナル英文を使った試作版です。市販教材の本文は収録していません。</p>
+</main>
+<script>
+const points = [
+  "Although が表す逆接の関係",
+  "主語 she と動詞 continued の関係",
+  "continued working が表す継続",
+  "because が導く理由",
+  "文全体の意味と論理関係"
+];
+const gradeButton = document.getElementById("grade");
+gradeButton.addEventListener("click", async () => {
+  const answer = document.getElementById("answer").value.trim();
+  const error = document.getElementById("error");
+  error.textContent = "";
+  if (!answer) { error.textContent = "日本語訳を入力してください。"; return; }
+  gradeButton.disabled = true;
+  gradeButton.textContent = "採点中...";
+  try {
+    const response = await fetch("/api/grade", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ sentence:document.getElementById("sentence").textContent, answer, points })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "採点に失敗しました。");
+    document.getElementById("score").textContent = data.score;
+    document.getElementById("status").textContent = data.perfect ? "🎉 完全クリア！攻撃成功！" : data.cleared ? "⚔️ 攻撃成功！" : "もう一度挑戦しよう！";
+    document.getElementById("overall").textContent = data.overallFeedback;
+    document.getElementById("modelTranslation").textContent = data.modelTranslation;
+    const list = document.getElementById("items");
+    list.replaceChildren();
+    data.items.forEach(item => {
+      const row = document.createElement("div"); row.className = "item";
+      const title = document.createElement("strong"); title.textContent = item.point + "　" + item.score + "/20点";
+      const detail = document.createElement("span"); detail.textContent = item.feedback;
+      row.append(title, detail); list.append(row);
+    });
+    document.getElementById("hintBox").classList.toggle("hidden", !data.hint);
+    document.getElementById("hint").textContent = data.hint;
+    const result = document.getElementById("result");
+    result.classList.remove("hidden");
+    result.scrollIntoView({behavior:"smooth", block:"start"});
+  } catch (e) {
+    error.textContent = e.message;
+  } finally {
+    gradeButton.disabled = false;
+    gradeButton.textContent = "AIに採点してもらう";
+  }
+});
+</script>
+</body>
+</html>
